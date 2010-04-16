@@ -6,21 +6,17 @@
 # then publish the changes to the code-review system. If fmt is available, use
 # it to reformat commit message to adhere to gerrit's sensibilities.
 #
-#
-# TODO:
-# . Add --preview (maybe)
-# . Add --no-fmt
-# . Running fmt for each commit message line is terribly inefficient
-# . Perhaps this whole thing should be written in Python instead
 
-VERSION="0.1"
-
-USAGE="[-h|--help] [--version]"
-LONG_USAGE="Usage: gerrit-publish.sh [-h]"
-OPTIONS_SPEC="gerrit-publish.sh $USAGE
+VERSION="0.2"
+OPTIONS_SPEC="\
+gerrit-publish.sh [option...]
 --
-h,help  no help, just run it!
-version $VERSION
+force!     Try publishing even if the branch has already been merged remotely
+h,help!    This message
+no-fetch!  Don't fetch before checking if branch has been merged remotely
+no-fmt!    Don't reformat commit messages
+no-push!   Prepare branch for publishing, but don't actually publish it
+version!   Version $VERSION
 "
 
 SUBDIRECTORY_OK=1
@@ -28,8 +24,17 @@ SUBDIRECTORY_OK=1
 require_work_tree
 cd_to_toplevel
 
+dofetch=1
+dopush=1
+force=
+usefmt=1
+
 while test $# != 0; do
   case "$1" in
+    --force) force=1; dofetch= ;; # force implies nofetch
+    --no-fetch) dofetch= ;;
+    --no-fmt) usefmt= ;;
+    --no-push) dopush= ;;
     --version) echo "$VERSION";  exit 0;;
   esac
   shift
@@ -55,55 +60,67 @@ Please set branch.$headname.remote to a real remote."
 
 destname=${upstream##$remote/}
 
+status() {
+  echo "~~~ $@"
+}
+
+# Fetch
+if test "$dofetch"; then
+  status "Fetching from $remote"
+  git fetch "$remote"
+fi
+
+# Check whether the topic has already been merged
+if ! test "$force" && git name-rev --no-undefined --refs="refs/remotes/$remote/*" \
+  HEAD >/dev/null 2>&1
+then
+    echo "Local branch $headname has already been merged to a branch on $remote."
+    echo "Use --force if you want to attempt publishing anyway."
+    exit 1
+fi
+
 # See if we need to add the Change-Id footer
+status "Checking commit messages for Change-Id footer"
 x05="[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]"
 x40="$x05$x05$x05$x05$x05$x05$x05$x05"
 have=$(git rev-list --grep="^Change-Id: I$x40$" "${upstream}..")
 nothave=$(git rev-list "${upstream}..")
 
-status() {
-  echo "==== $@ ===="
-}
-
+# Use filter-branch to rewrite as needed
 if ! test "$have" = "$nothave"; then
-  status "Adding Change-Id to commit messages"
+  status "Adding Change-Id footer to commit messages"
+  export usefmt
   git update-ref ORIG_HEAD HEAD # filter-branch should do this...
   git filter-branch --msg-filter '
     x05="[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]"
     x40="$x05$x05$x05$x05$x05$x05$x05$x05"
-    usefmt=$(type -p fmt)
-    has_change_id=0
-    linenum=0
-    while read line
-    do
-      case "$line" in
-        "Change-Id: I"$x40) has_change_id=1 ;;
-      esac
-      if test "$usefmt"; then
-        if test $linenum -eq 0; then
-          if test ${#line} -gt 65; then
-            echo "${line:0:62}..."
-            echo
-            echo "$line" | fmt -w 70
-          else
-            echo "$line"
-          fi
-        else
-          if test ${#line} -gt 70; then
-            echo "$line" | fmt -w 70
-          else
-            echo "$line"
-          fi
-        fi
-      else
-        echo "$line"
-      fi
-      ((linenum++))
-    done
-    if test $has_change_id -eq 0
-    then
-      echo; echo "Change-Id: I$GIT_COMMIT"
+    if test "$usefmt" && test "$(type -p fmt)"; then
+      fmt="fmt -w 70"
+    else
+      fmt=cat
     fi
+    (
+      has_change_id=
+      firstline=1
+      while read line
+      do
+        case "$line" in
+          "Change-Id: I"$x40) has_change_id=1 ;;
+        esac
+        if test "$usefmt" && test "$firstline" && test ${#line} -gt 65; then
+          echo "${line:0:62}..."
+          echo
+          echo "$line"
+        else
+          echo "$line"
+        fi
+        firstline=
+      done
+      if ! test "$has_change_id"; then
+        echo
+        echo "Change-Id: I$GIT_COMMIT"
+      fi
+    ) | $fmt
   ' --original refs/git-publish -f "${upstream}.." 2>/dev/null
 
   # Cleanup after filter-branch
@@ -111,14 +128,18 @@ if ! test "$have" = "$nothave"; then
 
   # Make sure we didn't break anything
   if ! git diff --quiet ORIG_HEAD HEAD; then
-    status "Unexpected changes; reverting HEAD"
+    status "Unexpected changes after running filter-branch; reverting HEAD"
     git reset --hard ORIG_HEAD
     exit 1
   fi
 fi
 
 # Publish
-status "Publishing commits"
-echo + git push "$remote" "HEAD:refs/for/$destname"
-git push "$remote" "HEAD:refs/for/$destname"
-
+if test "$dopush"; then
+  status "Publishing commits"
+  echo + git push "$remote" "HEAD:refs/for/$destname"
+  git push "$remote" "HEAD:refs/for/$destname"
+else
+  echo "To publish this topic use:"
+  echo git push "$remote" "HEAD:refs/for/$destname"
+fi

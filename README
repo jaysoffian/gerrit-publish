@@ -14,6 +14,16 @@ In particular, it performs the following actions when run:
 - Pushes to the correct `refs/for/`<i>`name`</i> pseudo-ref which it figures out
   automatically from the current branch's configured upstream branch.
 
+Usage
+-----
+gerrit-publish.sh [option...]
+
+ --force      Try publishing even if the branch has already been merged remotely
+ -h, --help   This message
+ --no-fetch   Don't fetch before checking if branch has been merged remotely
+ --no-fmt     Don't reformat commit messages
+ --no-push    Prepare branch for publishing, but don't actually publish it
+ --version    Show version
 
 License
 -------
