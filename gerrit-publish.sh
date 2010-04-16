@@ -89,11 +89,9 @@ nothave=$(git rev-list "${upstream}..")
 # Use filter-branch to rewrite as needed
 if ! test "$have" = "$nothave"; then
   status "Adding Change-Id footer to commit messages"
-  export usefmt
+  export usefmt x40
   git update-ref ORIG_HEAD HEAD # filter-branch should do this...
   git filter-branch --msg-filter '
-    x05="[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]"
-    x40="$x05$x05$x05$x05$x05$x05$x05$x05"
     if test "$usefmt" && test "$(type -p fmt)"; then
       fmt="fmt -w 70"
     else
