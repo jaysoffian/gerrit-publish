@@ -71,11 +71,11 @@ if test "$dofetch"; then
 fi
 
 # Check whether the topic has already been merged
-if ! test "$force" && git name-rev --no-undefined --refs="refs/remotes/$remote/*" \
-  HEAD >/dev/null 2>&1
+if ! test "$force" && git name-rev --no-undefined \
+    --refs="refs/remotes/$remote/*" HEAD >/dev/null 2>&1
 then
     echo "Local branch $headname has already been merged to a branch on $remote."
-    echo "Use --force if you want to attempt publishing anyway."
+    echo "Use --force to re-publish anyway."
     exit 1
 fi
 
