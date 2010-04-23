@@ -7,7 +7,7 @@
 # it to reformat commit message to adhere to gerrit's sensibilities.
 #
 
-VERSION="0.2"
+VERSION="0.3"
 OPTIONS_SPEC="\
 gerrit-publish.sh [option...]
 --
