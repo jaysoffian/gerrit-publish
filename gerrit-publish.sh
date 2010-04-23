@@ -40,8 +40,19 @@ while test $# != 0; do
   shift
 done
 
-git diff-index --quiet HEAD -- ||
-  die "Working tree is dirty; please commit or stash before proceeding."
+# The tree must be really really clean.
+if ! git update-index --ignore-submodules --refresh > /dev/null; then
+        echo >&2 "Cannot publish: you have unstaged changes"
+        git diff-files --name-status -r --ignore-submodules -- >&2
+        exit 1
+fi
+diff=$(git diff-index --cached --name-status -r --ignore-submodules HEAD --)
+case "$diff" in
+?*)     echo >&2 "Cannot publish: your index contains uncommitted changes"
+        echo >&2 "$diff"
+        exit 1
+        ;;
+esac
 
 headname=$(git rev-parse -q --verify --abbrev-ref HEAD --) ||
   die "Cannot determine current branch."
