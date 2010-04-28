@@ -6,6 +6,22 @@
 # then publish the changes to the code-review system. If fmt is available, use
 # it to reformat commit message to adhere to gerrit's sensibilities.
 #
+###################
+# TODO:
+#
+# [ ] Rename to gerrit-client.sh
+#
+# [ ] Add various verbs:
+#   1. publish - the default
+#   2. checkout [change-id] - fetch the given change, create a branch for it
+#      then switch to that branch. Good for examining someone else's change.
+#   3. apply [change-id] - fetch the given change and apply it on top of HEAD.
+#   4. rebase [change-id] - fetch the given change and rebase it.
+#   5. merge [change-id] - fetch the given change, then merge it. Which should
+#      be the first parent, the change or the branch?
+#
+# [ ] Try to make fmt not screw up footers such as "bug:", "git-svn-id:" etc.
+#
 
 VERSION="0.3"
 OPTIONS_SPEC="\
@@ -57,13 +73,21 @@ esac
 headname=$(git rev-parse -q --verify --abbrev-ref HEAD --) ||
   die "Cannot determine current branch."
 
-upstream=$(git rev-parse -q --verify --abbrev-ref @{upstream} --) ||
-  die "Cannot determine upstream branch for $headname.
-Please set branch.$headname.merge and branch.$headname.remote correctly."
+remote=$(git config branch.$headname.remote)
+if ! test "$remote"; then
+    echo "Cannot determine remote for $headname; guessing 'origin'"
+    echo "If this is not correct, please set branch.$headname.remote"
+    remote='origin'
+fi
 
-remote=$(git config branch.$headname.remote) ||
-  die "Cannot determine remote for $headname.
-Please set branch.$headname.remote correctly."
+upstream=$(git rev-parse -q --verify --abbrev-ref @{upstream} -- 2>/dev/null)
+if ! test "$upstream"; then
+  upstream=$(git rev-parse -q --verify --abbrev-ref "$remote" --) ||
+    die "Cannot determine upstream branch for $headname.
+Please set branch.$headname.merge correctly."
+  echo "Cannot determine upstream branch for $headname; guessing '$upstream'"
+  echo "If this is not correct, please set branch.$headname.merge"
+fi
 
 test "$remote" = "." &&
   die "Cannot use local repo ('.') as the remote.
