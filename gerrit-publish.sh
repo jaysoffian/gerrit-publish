@@ -23,7 +23,7 @@
 # [ ] Try to make fmt not screw up footers such as "bug:", "git-svn-id:" etc.
 #
 
-VERSION="0.3"
+VERSION="0.4"
 OPTIONS_SPEC="\
 gerrit-publish.sh [option...]
 --
